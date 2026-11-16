@@ -1,0 +1,13 @@
+EIGENE BILDER EINFÜGEN
+======================
+Die paar-1.jpg ... paar-6.jpg sind nur Platzhalter.
+
+Variante A (am einfachsten):
+  Deine Bilder in diesen Ordner legen und so benennen:
+  paar-1.jpg, paar-2.jpg, ... paar-6.jpg  (alte Dateien überschreiben)
+
+Variante B:
+  Bild mit beliebigem Namen hier reinlegen (z. B. mein-hund.png) und in
+  src/lib/memory-pairs.ts bei "image" eintragen: `${BILDER_ORDNER}/mein-hund.png`
+
+Danach Seite neu laden (npm run dev läuft weiter).

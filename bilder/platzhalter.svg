@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" role="img" aria-label="Platzhalter">
+  <rect width="400" height="600" fill="#f2eef1"/>
+  <rect x="130" y="230" width="140" height="110" rx="12" fill="none" stroke="#640046" stroke-width="8"/>
+  <circle cx="175" cy="272" r="14" fill="#640046"/>
+  <path d="M142 330l42-38 30 26 22-18 34 30z" fill="#640046"/>
+  <text x="200" y="400" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#640046">Bild fehlt</text>
+  <text x="200" y="430" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#640046">public/bilder/</text>
+</svg>
