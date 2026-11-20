@@ -35,7 +35,7 @@ const PAIRS_BY_ID = Object.fromEntries(PAIRS.map(p => [p.id, p]));
 // Die Spiel-Logik verwaltet Karten, Treffer, Fehler und Punkte.
 // Ein Treffer erhöht die Punktzahl; ein Fehler kostet Punkte und setzt den Streak zurück.
 const POINTS_PER_PAIR = 100, MISS_PENALTY = -20;
-const MISMATCH_DELAY = 1100, RESULTS_DELAY = 1200;
+const RESULTS_DELAY = 1200;
 const pointsForStreak = s => Math.max(1, s) * POINTS_PER_PAIR;
 const buildDeck = () => PAIRS.flatMap(p => [
   {id:`${p.id}-image`, pairId:p.id, kind:"image"},
@@ -45,25 +45,28 @@ function shuffle(items){
   for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
   return a;
 }
-const createGame = cards => ({cards, flipped:[], matched:[], points:0, streak:0, moves:0, lastEvent:null});
+const createGame = cards => ({cards, flipped:[], matched:[], points:0, streak:0, bestStreak:0, moves:0, lastEvent:null});
 const isWaiting  = s => s.flipped.length === 2;
 const isFinished = s => s.cards.length > 0 && s.matched.length * 2 === s.cards.length;
 
 function flip(s, index){
   const card = s.cards[index];
-  if(!card || isWaiting(s) || s.matched.includes(card.pairId) || s.flipped.includes(index)) return s;
+  if(!card || s.matched.includes(card.pairId)) return s;
+  if(isWaiting(s)){
+    if(s.flipped.includes(index)) return {...s, flipped:[], streak:0};
+    s = {...s, flipped:[], streak:0};
+  }
+  if(s.flipped.includes(index)) return s;
   const flipped = [...s.flipped, index];
   if(flipped.length < 2) return {...s, flipped};
   const moves = s.moves + 1, seq = (s.lastEvent?.seq ?? 0) + 1;
   const first = s.cards[flipped[0]];
   if(first.pairId === card.pairId){
     const streak = s.streak + 1, delta = pointsForStreak(streak);
-    return {...s, flipped:[], matched:[...s.matched, card.pairId], points:s.points+delta, streak, moves, lastEvent:{delta,streak,seq}};
+    return {...s, flipped:[], matched:[...s.matched, card.pairId], points:s.points+delta, streak, bestStreak:Math.max(s.bestStreak, streak), moves, lastEvent:{delta,streak,seq}};
   }
   return {...s, flipped, moves, streak:0, points:s.points+MISS_PENALTY, lastEvent:{delta:MISS_PENALTY,streak:0,seq}};
 }
-const resolve = s => isWaiting(s) ? {...s, flipped:[], streak:0} : s;
-
 /* ===== Rangliste (Supabase REST) ===== */
 // Diese Abschnitt lädt und speichert Ergebnisse in der Rangliste.
 const SUPA_URL = "https://hlhhngaaoioidslrabrp.supabase.co";
@@ -71,13 +74,13 @@ const SUPA_KEY = "sb_publishable_XmsGBkePC-85sPWoHuLh3A_28J0FcIf";
 const H = {apikey:SUPA_KEY, Authorization:`Bearer ${SUPA_KEY}`, "Content-Type":"application/json"};
 const TABLE = `${SUPA_URL}/rest/v1/leaderboard_scores`;
 async function fetchTop(){
-  const r = await fetch(`${TABLE}?select=id,name,score,moves,created_at&order=score.desc,moves.asc,created_at.asc&limit=10`, {headers:H});
+  const r = await fetch(`${TABLE}?select=id,name,score,moves,best_streak,created_at&order=score.desc,moves.asc,created_at.asc&limit=10`, {headers:H});
   if(!r.ok) throw new Error(r.status);
   return r.json();
 }
-async function submitScore(name, score, moves){
-  const r = await fetch(`${TABLE}?select=id,name,score,moves,created_at`, {
-    method:"POST", headers:{...H, Prefer:"return=representation"}, body:JSON.stringify({name, score, moves})});
+async function submitScore(name, score, moves, bestStreak){
+  const r = await fetch(`${TABLE}?select=id,name,score,moves,best_streak,created_at`, {
+    method:"POST", headers:{...H, Prefer:"return=representation"}, body:JSON.stringify({name, score, moves, best_streak:bestStreak})});
   if(!r.ok) throw new Error(r.status);
   const entry = (await r.json())[0];
   const c = await fetch(`${TABLE}?select=id&score=gt.${score}`, {headers:{...H, Prefer:"count=exact", Range:"0-0"}});
@@ -119,6 +122,7 @@ function buildBoard(){
     const pair = PAIRS_BY_ID[card.pairId];
     const b = document.createElement("button");
     b.type = "button"; b.className = "memory-card";
+    b.dataset.kind = card.kind;
     b.setAttribute("aria-label", "Verdeckte Karte");
     b.innerHTML = `<div class="inner"><div class="face back"><span class="q">?</span></div><div class="face front">` +
       (card.kind === "image"
@@ -133,11 +137,7 @@ function onFlip(index){
   // Beim Klick eine Karte umdrehen und prüfen, ob ein Paar gefunden wurde.
   const next = flip(state, index);
   if(next === state) return;
-  const waitedBefore = isWaiting(state);
   state = next; update();
-  if(isWaiting(state) && !waitedBefore){
-    timers.push(setTimeout(() => { state = resolve(state); update(); }, MISMATCH_DELAY));
-  }
   if(isFinished(state)){
     timers.push(setTimeout(showResults, RESULTS_DELAY));
   }
@@ -151,7 +151,7 @@ function update(){
     const card = state.cards[i], pair = PAIRS_BY_ID[card.pairId];
     const matched = state.matched.includes(card.pairId);
     const open = matched || state.flipped.includes(i);
-    b.dataset.open = open; b.dataset.matched = matched; b.disabled = open;
+    b.dataset.open = open; b.dataset.matched = matched; b.disabled = matched;
     b.setAttribute("aria-label", open ? (card.kind === "image" ? pair.alt : pair.text) : "Verdeckte Karte");
   });
   const ev = state.lastEvent;
@@ -177,6 +177,7 @@ function showResults(){
     `<li class="pop-in" style="animation-delay:${i * 70}ms"><img src="${esc(p.image)}" alt="${esc(p.alt)}">` +
     `<div class="t"><h3>${esc(p.title)}</h3><p>${esc(p.details)}</p></div></li>`).join("");
   $("res-points").textContent = `${state.points} Punkte!`;
+  $("res-best-streak").textContent = state.bestStreak;
   $("res-moves").textContent = `Alle Paare gefunden in ${state.moves} Zügen.`;
   renderSave(); loadTop();
 }
@@ -195,7 +196,7 @@ function renderSave(){
     if(name.length > 24){ err.textContent = "Höchstens 24 Zeichen."; err.classList.remove("hidden"); return; }
     err.classList.add("hidden"); btn.disabled = true; btn.textContent = "…";
     try {
-      const {entry, rank} = await submitScore(name, state.points, state.moves);
+      const {entry, rank} = await submitScore(name, state.points, state.moves, state.bestStreak);
       try { localStorage.setItem("memory-player-name", entry.name); } catch(e) {}
       savedIds.push(entry.id);
       form.remove();
@@ -220,7 +221,7 @@ async function loadTop(){
     box.innerHTML = "<ol>" + data.map((e, i) => {
       const mine = savedIds.includes(e.id);
       return `<li class="${mine ? "mine" : i % 2 === 0 ? "alt" : ""}"><span class="rk">${i === 0 ? "👑" : (i + 1) + "."}</span>` +
-        `<span class="nm">${esc(e.name)}</span><span class="mv">${e.moves} Züge</span><span class="sc">${e.score}</span></li>`;
+        `<span class="nm">${esc(e.name)}</span><span class="mv">${e.moves} Züge</span><span class="sc">${e.score}</span><span class="st">🔥 ${e.best_streak}</span></li>`;
     }).join("") + "</ol>";
   } catch(e) {
     box.innerHTML = '<p class="info">Die Rangliste konnte nicht geladen werden.</p>';
@@ -235,4 +236,5 @@ $("menu-restart").addEventListener("click", () => {
 });
 $("menu-exit").addEventListener("click", closeMenu);
 $("again").addEventListener("click", newGame);
+$("start-game").addEventListener("click", () => $("intro-overlay").classList.add("hidden"));
 newGame();

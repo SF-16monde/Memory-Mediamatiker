@@ -31,6 +31,15 @@
       </div>
     </div>
 
+    <div class="intro-overlay" id="intro-overlay" aria-modal="true" role="dialog" aria-labelledby="intro-title">
+      <section class="intro-modal">
+        <h2 id="intro-title">Memory Mediamatiker</h2>
+        <p>Der Mediamatiker arbeitet in unterschiedlichen Bereichen. Finde alle Bereiche, indem du die richtigen Paare aufdeckst. Es gehören immer eine Text und eine Bildkarte zusammen.</p>
+        <p>Jedes aufgedeckte Paar gibt 100 Punkte. Für eine Serie von richtig aufgedeckten Paaren gibt es mehr Punkte. Beim 2. Paar hintereinander 200 Punkte, beim 3. Paar hintereinander 300 Punkte und so weiter.</p>
+        <button class="menu-action menu-action-primary" id="start-game" type="button">Start</button>
+      </section>
+    </div>
+
     <!-- Spielfeld: hier werden die Memory-Karten dynamisch eingefügt -->
     <section id="board-wrap" aria-label="Spielfeld"><div class="memory-board" id="board"></div></section>
 
@@ -40,7 +49,7 @@
       <div class="right">
         <div class="banner pop-in">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8zM19 14l.9 2.6L22.5 17.5l-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9z"/></svg>
-          <div class="b"><p id="res-points"></p><p id="res-moves"></p></div>
+          <div class="b"><p class="score-line"><span id="res-points"></span><span class="best-streak">🔥 <span id="res-best-streak"></span></span></p><p id="res-moves"></p></div>
           <button class="btn btn-accent" id="again">Nochmal</button>
         </div>
         <aside>
